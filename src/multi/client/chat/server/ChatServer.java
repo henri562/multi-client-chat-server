@@ -7,8 +7,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -21,13 +22,15 @@ import javax.swing.JTextArea;
 public class ChatServer extends JFrame {
     private JTextArea jta;
     private JPanel jpl;
-    private final ArrayList<Socket> socketList;
-    private static int clientNo;
+    /* A mapping from sockets to DataOutputStreams. This allows us to avoid
+    having to create a DataOutputStream each time we want to write to a stream
+    */
+    private final HashMap<Socket, DataOutputStream> outputStreams =
+                                                                new HashMap<>();
 
-    public ChatServer() {
+    public ChatServer(int portNum) {
         initComponents();
-        socketList = new ArrayList<>();
-        jta.append("Chat server started at " + new Date() + '\n');
+        listen(portNum);
     }
 
     private void initComponents() {
@@ -50,69 +53,98 @@ public class ChatServer extends JFrame {
         setVisible(true);
     }
 
-    private class handleClient implements Runnable {
-        private final Socket clientSocket;
-
-        public handleClient(Socket socket) {
-            clientSocket = socket;
-            socketList.add(socket);
-            printClientInfo();
-        }
-
-        private void printClientInfo() {
-            jta.append("Starting thread for Client " + ++clientNo
-                              + " at " + new Date() + '\n');
-            jta.append("Client " + clientNo + "'s host name is "
-                              + clientSocket.getInetAddress().getHostName()
-                              + '\n');
-            jta.append("Client " + clientNo + "'s IP address is "
-                              + clientSocket.getRemoteSocketAddress().toString()
-                              + '\n');
-        }
-
-        @Override
-        public void run() {
-            boolean listening = true;
-            while (listening) {
-                try {
-                    //read strings from client
-                    DataInputStream fromClient =
-                             new DataInputStream(clientSocket.getInputStream());
-                    String name = fromClient.readUTF();
-                    String message = fromClient.readUTF();
-
-                    jta.append(name + ": " + message + '\n');
-
-                    //send strings to all connected clients
-                    for (Socket s : socketList) {
-                        DataOutputStream toClient =
+    private void listen(int portNum) {
+        jta.append("Chat server started at " + new Date() + '\n');
+        try {
+            ServerSocket ss = new ServerSocket(portNum);
+            //keep accepting connections from client
+            while (true) {
+                Socket s = ss.accept(); //grab incoming connection
+                jta.append("Connection from " + s + '\n');
+                //map socket to DataOutputStream
+                DataOutputStream dout =
                                       new DataOutputStream(s.getOutputStream());
-                        toClient.writeUTF(name);
-                        toClient.writeUTF(message);
-                    }
+                outputStreams.put(s, dout);
+                //start individual thread to deal with client
+                new Thread(new handleClient(this, s)).start();
+            }
+        }
+        catch (IOException ioe) {
+            System.err.println(ioe);
+        }
+    }
+
+    void sendToAll(String msg) {
+        /* this is synchronized in the event that another thread is calling
+        removeConnection() which also works on the same Hashmap */
+        synchronized(outputStreams){
+            for (Map.Entry<Socket, DataOutputStream> e :
+                 outputStreams.entrySet()) {
+                //get corresponding DataOutputStream object from Hashmap
+                DataOutputStream dout = e.getValue();
+                try {
+                    dout.writeUTF(msg); //write to client
                 }
-                catch (IOException ioe) {
+                catch(IOException ioe) {
                     System.err.println(ioe);
                 }
             }
         }
     }
 
-    public static void main(String[] args) {
-        //instantiate server object
-        ChatServer s = new ChatServer();
-        int portNum = 9999;
-        boolean listening = true;
-
-        //create server socket and listen for client connections indefinitely
-        try (ServerSocket serverSocket = new ServerSocket(portNum)) {
-            while (listening) {
-                new Thread(s.new handleClient(serverSocket.accept())).start();
+    void removeConnection(Socket s) {
+        //synchronized in case another thread is calling sendToAll()
+        synchronized(outputStreams) {
+            outputStreams.remove(s); //remove key(socket) from Hashmap
+            try {
+                jta.append("Connection removed\n");
+                s.close();
+            }
+            catch (IOException ioe) {
+                System.err.println(ioe);
             }
         }
-        catch (IOException ioe) {
-            System.err.println("Could not listen on port " + portNum);
-            System.exit(-1);
+    }
+
+    private class handleClient implements Runnable {
+        private final ChatServer server;
+        private final Socket socket;
+
+        public handleClient(ChatServer server, Socket socket) {
+            this.server = server;
+            this.socket = socket;
         }
+
+        @Override
+        public void run() {
+            try {
+                while(true) {
+                    //read strings from client
+                    DataInputStream din =
+                                  new DataInputStream(socket.getInputStream());
+                    String name = din.readUTF();
+                    String message = din.readUTF();
+
+                    jta.append(name + ": " + message + '\n');
+
+                    //send strings to all connected clients
+                    server.sendToAll(name);
+                    server.sendToAll(message);
+                }
+            }
+            catch (IOException ioe) {
+                System.err.println(ioe);
+            }
+            finally {
+                //if a client connection is closed, clean up
+                server.removeConnection(socket);
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        //instantiate server object
+        int portNum = 9999;
+        new ChatServer(portNum);
     }
 }
