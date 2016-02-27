@@ -92,9 +92,10 @@ public class ChatServer extends JFrame {
         synchronized(outputStreams){
             for (Map.Entry<Socket, DataOutputStream> e :
                  outputStreams.entrySet()) {
+                //get corresponding DataOutputStream object from Hashmap
                 DataOutputStream dout = e.getValue();
                 try {
-                    dout.writeUTF(msg);
+                    dout.writeUTF(msg); //write to client
                 }
                 catch(IOException ioe) {
                     System.err.println(ioe);

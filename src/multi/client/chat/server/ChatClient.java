@@ -6,6 +6,7 @@ import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import javax.swing.JFrame;
@@ -20,13 +21,17 @@ import javax.swing.JTextField;
  *
  * @author Mengchuan Lin
  */
-public class ChatClient extends JFrame {
+public class ChatClient extends JFrame implements Runnable {
     private JTextArea jta;
     private JTextField jtfName, jtfMsg;
     private JPanel jpl1, jpl2, jpl3;
+
+    private Socket socket;
+    private DataOutputStream dout;
+    private DataInputStream din;
     private String name, message;
 
-    public ChatClient() {
+    public ChatClient(String hostName, int portNum) {
         initComponents();
         jtfMsg.addActionListener(new ActionListener(){
             @Override
@@ -35,7 +40,8 @@ public class ChatClient extends JFrame {
                     !jtfMsg.getText().isEmpty()) {
                     name = jtfName.getText().trim();
                     message = jtfMsg.getText().trim();
-                    exchangeData();
+                    processMessage(name);
+                    processMessage(message);
                 }
                 else if (jtfName.getText().isEmpty())
                     JOptionPane.showMessageDialog(null, "Enter name.",
@@ -47,6 +53,7 @@ public class ChatClient extends JFrame {
                                 JOptionPane.ERROR_MESSAGE);
             }
         });
+        connectToServer(hostName, portNum);
     }
 
     private void initComponents() {
@@ -87,20 +94,51 @@ public class ChatClient extends JFrame {
         setVisible(true);
     }
 
-    private void exchangeData() {
-        int portNum = 9999;
-        try (Socket clientSocket = new Socket("localhost", portNum);) {
-            DataInputStream in =
-                             new DataInputStream(clientSocket.getInputStream());
-            in.readUTF();
-
+    private void processMessage(String msg) {
+        try {
+            dout.writeUTF(msg); //send text to server
+            jtfMsg.setText(""); //clear out text input field
         }
         catch (IOException ioe) {
             System.err.println(ioe);
         }
     }
 
+    @Override
+    public void run() {
+        try {
+            while(true) {
+                String rName = din.readUTF();
+                String rMessage = din.readUTF();
+                jta.append(rName + ": " + rMessage + '\n');
+            }
+        }
+        catch(IOException ioe) {
+            System.err.println(ioe);
+        }
+    }
+
+    private void connectToServer(String hostName, int portNum) {
+        try {
+            //initiate connection to server
+            socket = new Socket(hostName, portNum);
+
+            jta.append("Connected to " + socket);
+
+            din = new DataInputStream(socket.getInputStream());
+            dout = new DataOutputStream(socket.getOutputStream());
+
+            //start background thread to receive messages
+            new Thread(this).start();
+        }
+        catch(IOException ioe) {
+            System.err.println(ioe);
+        }
+    }
+
     public static void main(String[] args) {
-        new ChatClient();
+        String hostName =  "localhost";
+        int portNum = 9999;
+        new ChatClient(hostName, portNum);
     }
 }
