@@ -22,7 +22,6 @@ import javax.swing.JTextArea;
 public class ChatServer extends JFrame {
     private JTextArea jta;
     private JPanel jpl;
-    private static int clientNo;
     /* A mapping from sockets to DataOutputStreams. This allows us to avoid
     having to create a DataOutputStream each time we want to write to a stream
     */
@@ -61,7 +60,7 @@ public class ChatServer extends JFrame {
             //keep accepting connections from client
             while (true) {
                 Socket s = ss.accept(); //grab incoming connection
-                printClientInfo(s); //print client connection info
+                jta.append("Connection from " + s + '\n');
                 //map socket to DataOutputStream
                 DataOutputStream dout =
                                       new DataOutputStream(s.getOutputStream());
@@ -73,17 +72,6 @@ public class ChatServer extends JFrame {
         catch (IOException ioe) {
             System.err.println(ioe);
         }
-    }
-
-    private void printClientInfo(Socket socket) {
-        jta.append("Starting thread for Client " + ++clientNo
-                    + " at " + new Date() + '\n');
-        jta.append("Client " + clientNo + "'s host name is "
-                   + socket.getInetAddress().getHostName()
-                   + '\n');
-        jta.append("Client " + clientNo + "'s IP address is "
-                   + socket.getRemoteSocketAddress().toString()
-                   + '\n');
     }
 
     void sendToAll(String msg) {
@@ -109,6 +97,7 @@ public class ChatServer extends JFrame {
         synchronized(outputStreams) {
             outputStreams.remove(s); //remove key(socket) from Hashmap
             try {
+                jta.append("Connection removed\n");
                 s.close();
             }
             catch (IOException ioe) {
@@ -128,8 +117,8 @@ public class ChatServer extends JFrame {
 
         @Override
         public void run() {
-            while (true) {
-                try {
+            try {
+                while(true) {
                     //read strings from client
                     DataInputStream din =
                                   new DataInputStream(socket.getInputStream());
@@ -142,13 +131,13 @@ public class ChatServer extends JFrame {
                     server.sendToAll(name);
                     server.sendToAll(message);
                 }
-                catch (IOException ioe) {
-                    System.err.println(ioe);
-                }
-                finally {
-                    //if a client connection is closed, clean up
-                    server.removeConnection(socket);
-                }
+            }
+            catch (IOException ioe) {
+                System.err.println(ioe);
+            }
+            finally {
+                //if a client connection is closed, clean up
+                server.removeConnection(socket);
             }
         }
     }

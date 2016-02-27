@@ -123,7 +123,7 @@ public class ChatClient extends JFrame implements Runnable {
             //initiate connection to server
             socket = new Socket(hostName, portNum);
 
-            jta.append("Connected to " + socket);
+            jta.append("Connected to " + socket + '\n');
 
             din = new DataInputStream(socket.getInputStream());
             dout = new DataOutputStream(socket.getOutputStream());
