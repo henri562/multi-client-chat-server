@@ -58,7 +58,7 @@ public class ChatServer extends JFrame {
             socketList.add(socket);
             printClientInfo();
         }
-        
+
         private void printClientInfo() {
             jta.append("Starting thread for Client " + ++clientNo
                               + " at " + new Date() + '\n');
@@ -75,17 +75,19 @@ public class ChatServer extends JFrame {
             boolean listening = true;
             while (listening) {
                 try {
-                    //read string from client
+                    //read strings from client
                     DataInputStream fromClient =
                              new DataInputStream(clientSocket.getInputStream());
+                    String name = fromClient.readUTF();
                     String message = fromClient.readUTF();
 
-                    jta.append(message);
+                    jta.append(name + ": " + message + '\n');
 
-                    //send string to all connected clients
+                    //send strings to all connected clients
                     for (Socket s : socketList) {
                         DataOutputStream toClient =
                                       new DataOutputStream(s.getOutputStream());
+                        toClient.writeUTF(name);
                         toClient.writeUTF(message);
                     }
                 }
