@@ -86,7 +86,7 @@ public class ChatClient extends JFrame implements Runnable {
         jta.setEditable(false);
         add(new JScrollPane(jta), BorderLayout.CENTER);
 
-        setTitle("Loan Client");
+        setTitle("Chat Client");
         Dimension d = new Dimension(400, 300);
         setSize(d);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
